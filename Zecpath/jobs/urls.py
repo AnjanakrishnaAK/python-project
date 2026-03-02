@@ -2,6 +2,7 @@ from django.urls import path
 from jobs.views import EmployerJobApplicationsView,EmployerJobCreateView,AdminVerifyJobView,EmployerJobUpdateView,PublicJobListView,LatestJobListView,EmployerJobListView,CandidateAppliedJobsView,ApplyJobAPIView
 from jobs.views import MyApplicationTrackingAPIView,MyApplicationDetailAPIView,EmployerApplicationTrackingAPIView,UpdateApplicationStatusAPIView,EmployerCloseJobView,EmployerAnalyticsAPIView,EmployerDashboardAPIView
 from jobs.views import EmployerJobPipelineAPIView,BulkApplicationStatusUpdateAPIView,EmployerPipelineSummaryAPIView
+from .views import *
 urlpatterns = [
     path('jobs/<int:job_id>/apply/', ApplyJobAPIView.as_view()),
     path('employer/jobs/<int:job_id>/applications/',EmployerJobApplicationsView.as_view()),
@@ -23,4 +24,8 @@ urlpatterns = [
     path("employer/pipeline/", EmployerJobPipelineAPIView.as_view()),
     path("employer/pipeline/bulk-update/", BulkApplicationStatusUpdateAPIView.as_view()),
     path("employer/pipeline-summary/", EmployerPipelineSummaryAPIView.as_view()),
+    path("save/<int:job_id>/",SaveJob.as_view()),
+    path("candidate/saved/",CandidateSavedJobs.as_view()),
+    path("recommendations/",Recommendations.as_view()),
+
 ]

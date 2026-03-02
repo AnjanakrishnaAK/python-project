@@ -22,6 +22,10 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from jobs.serializers import JobSerializer
 
+from accounts.permissions import IsCandidate
+from .models import Job, SavedJob
+from .serializers import SavedJobSerializer
+
 class ApplyJobAPIView(APIView):
     permission_classes = [IsAuthenticated]
     @transaction.atomic
@@ -635,3 +639,73 @@ class EmployerJobPipelineAPIView(APIView):
 
         serializer = EmployerApplicationRecordSerializer(applications, many=True)
         return Response(serializer.data)
+    
+
+class SaveJob(APIView):
+
+    permission_classes = [IsAuthenticated, IsCandidate]
+
+    def post(self, request, job_id):
+
+        job = Job.objects.get(id=job_id)
+
+        SavedJob.objects.get_or_create(
+            candidate=request.user,
+            job=job
+        )
+
+        return Response({"message": "Saved"})
+    
+class CandidateSavedJobs(APIView):
+
+    permission_classes = [IsAuthenticated, IsCandidate]
+
+    def get(self, request):
+
+        saved_jobs = SavedJob.objects.filter(
+            candidate=request.user
+        ).select_related("job")
+
+        data = []
+
+        for s in saved_jobs:
+
+            data.append({
+                "job_id": s.job.id,
+                "title": s.job.title,
+                "company": s.job.company_name,
+                "location": s.job.location,
+                "saved_at": s.saved_at
+            })
+
+        return Response(data)
+
+class Recommendations(APIView):
+
+    permission_classes = [IsAuthenticated, IsCandidate]
+
+    def get(self, request):
+
+        skills = request.user.profile.skill_list()
+
+        jobs = Job.objects.all()
+
+        result = []
+
+        for job in jobs:
+
+            match = set(skills) & set(
+                job.skill_list()
+            )
+
+            if match:
+
+                result.append({
+
+                    "job_id": job.id,
+                    "title": job.title,
+                    "company": job.company_name,
+                    "match_skills": list(match)
+                })
+
+        return Response(result)

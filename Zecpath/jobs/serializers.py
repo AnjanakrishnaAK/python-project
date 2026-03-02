@@ -4,6 +4,7 @@ from rest_framework import serializers
 from accounts.models import Resume
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import ListAPIView
+from .models import Job, SavedJob
 
 class JobApplicationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -193,3 +194,14 @@ class JobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = "__all__"
+
+
+class SavedJobSerializer(serializers.ModelSerializer):
+
+    job = JobSerializer()
+
+    class Meta:
+
+        model = SavedJob
+
+        fields = ["id", "job", "saved_at"]

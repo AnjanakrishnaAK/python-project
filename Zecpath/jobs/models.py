@@ -54,6 +54,8 @@ class Job(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+
 class JobApplication(models.Model):
     job = models.ForeignKey(
         Job,
@@ -86,3 +88,22 @@ class JobApplication(models.Model):
     class Meta:
         unique_together = ('job', 'candidate')
         ordering = ['-applied_at']
+
+
+class SavedJob(models.Model):
+
+    candidate = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="saved_jobs"
+    )
+
+    job = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE
+    )
+
+    saved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("candidate", "job")

@@ -29,7 +29,7 @@ from django.db.models import Q
 
 from django.db import models
 from .models import User
-
+from .serializers import AdminProfileSerializer
 
     
 class RegisterView(APIView):
@@ -286,6 +286,26 @@ class RecruiterCandidateSearchView(ListAPIView):
             queryset = queryset.filter(experience_years__lte=max_exp)
 
         return queryset
+    
+
+class AdminProfileAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        if not request.user.is_staff:
+            return Response(
+                {"success": False, "message": "Admin access required"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = AdminProfileSerializer(request.user)
+
+        return Response({
+            "success": True,
+            "data": serializer.data
+        })
     
 
 

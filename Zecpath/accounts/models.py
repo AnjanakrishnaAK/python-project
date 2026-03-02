@@ -4,8 +4,10 @@ from django.utils import timezone
 from django.conf import settings
 from .managers import UserManager
 from django.contrib.auth.models import AbstractUser
+from django.db import models
+from django.conf import settings
 
-
+User = settings.AUTH_USER_MODEL
 
 class User(AbstractUser):
     username = None
@@ -20,16 +22,50 @@ class User(AbstractUser):
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
-
+    objects = UserManager()
     def __str__(self):
         return f"{self.email} ({self.role})"
 
     
 
 class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)
 
+    ROLE_CHOICES = (
+        ("candidate", "Candidate"),
+        ("employer", "Employer"),
+    )
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="profile"
+    )
+
+    role = models.CharField(
+        max_length=20,
+        default="candidate",
+        choices=ROLE_CHOICES
+    )
+
+    skills = models.TextField(blank=True)
+
+    location = models.CharField(
+        max_length=255,
+        blank=True
+    )
+
+    experience = models.IntegerField(default=0)
+
+    def skill_list(self):
+        if not self.skills:
+            return []
+        return [
+            skill.strip().lower()
+            for skill in self.skills.split(",")
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} Profile"
 
     
 class BaseProfile(models.Model):
@@ -98,19 +134,26 @@ class EmployerProfile(BaseProfile):
     
 
 class Resume(models.Model):
+
     candidate = models.ForeignKey(
         CandidateProfile,
         on_delete=models.CASCADE,
-        related_name='resumes'
+        related_name="resumes"
     )
-    file = models.FileField(upload_to='resumes/')
-    file_hash = models.CharField(max_length=64)
-    version = models.PositiveIntegerField()
+
+    file = models.FileField(upload_to="resumes/")
     is_active = models.BooleanField(default=False)
+
+    parsed_data = models.JSONField(
+        null=True,
+        blank=True
+    )
+
+    is_parsed = models.BooleanField(default=False)
+
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.candidate.user.email} - v{self.version}"
-    
+        return f"{self.candidate.user} Resume"
 
 

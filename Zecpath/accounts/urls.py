@@ -3,7 +3,7 @@ from .views import RegisterView
 
 from .views import SignupView, LoginView,CandidateProfileAPI, EmployerProfileAPI
 from rest_framework_simplejwt.views import TokenRefreshView
-from .views import ResumeUploadAPIView,CandidateListView
+from .views import ResumeUploadAPIView,CandidateListView,AdminProfileAPIView
 
 from .views import CandidateResumeListView,RecruiterCandidateSearchView
 urlpatterns = [
@@ -19,4 +19,5 @@ urlpatterns = [
     path("candidate/resume/",CandidateResumeListView.as_view(),name="candidate-resume"),
     path("recruiter/candidates/",CandidateListView.as_view(),name="recruiter-candidate-list"),
     path("recruiter/candidates/search/",RecruiterCandidateSearchView.as_view(),name="recruiter-candidate-search"),
+    path("admin/profile/", AdminProfileAPIView.as_view(), name="admin-profile"),
 ]

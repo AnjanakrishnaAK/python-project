@@ -20,8 +20,14 @@ class IsEmployer(BasePermission):
         return request.user.role == "employer"
     
 class IsCandidate(BasePermission):
+
     def has_permission(self, request, view):
-        return request.user.role == "candidate"
+
+        return (
+            request.user.is_authenticated and
+            hasattr(request.user, "profile") and
+            request.user.profile.role == "candidate"
+        )
     
 class IsAdmin(BasePermission):
     def has_permission(self, request, view):

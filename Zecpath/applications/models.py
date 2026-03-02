@@ -1,6 +1,7 @@
 from django.db import models
 
 # Create your models here.
+
 class PipelineStage(models.Model):
     name = models.CharField(max_length=50)
     order = models.PositiveIntegerField()
@@ -16,10 +17,12 @@ class Application(models.Model):
 
     STATUS_CHOICES = [
         ('applied', 'Applied'),
+        ("review", "Under Review"),
         ('shortlisted', 'Shortlisted'),
         ('interview', 'Interview Scheduled'),
         ('rejected', 'Rejected'),
         ('selected', 'Selected'),
+        ("withdrawn", "Withdrawn"),
     ]
 
     candidate = models.ForeignKey(
@@ -153,4 +156,7 @@ class ApplicationStatusHistory(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
+
+
+
 

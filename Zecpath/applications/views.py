@@ -6,6 +6,17 @@ from django.shortcuts import get_object_or_404
 from applications.models import Application, PipelineStage
 from applications.permissions import IsEmployer
 from applications.models import Application
+from accounts.permissions import IsCandidate
+from .models import Application, ApplicationStatusHistory
+from .serializers import ApplicationSerializer
+from jobs.models import Job, SavedJob
+from notifications.models import Notification
+
+from accounts.models import CandidateProfile
+
+from ats.services.match_service import MatchService
+
+
 # Create your views here.
 class MoveStageView(APIView):
     permission_classes = [IsAuthenticated]
@@ -156,3 +167,220 @@ class ApplicationHistoryView(APIView):
         ]
 
         return Response(data)
+    
+
+class CandidateDashboard(APIView):
+
+    permission_classes = [IsAuthenticated, IsCandidate]
+
+    def get(self, request):
+
+        user = request.user
+
+        return Response({
+
+            "applied_jobs":
+                Application.objects.filter(
+                    candidate=user
+                ).count(),
+
+            "saved_jobs":
+                SavedJob.objects.filter(
+                    candidate=user
+                ).count(),
+
+            "interviews":
+                Application.objects.filter(
+                    candidate=user,
+                    status="interview"
+                ).count(),
+
+            "notifications":
+                Notification.objects.filter(
+                    user=user,
+                    is_read=False
+                ).count(),
+        })
+
+class CandidateAppliedJobs(APIView):
+
+    permission_classes = [IsAuthenticated, IsCandidate]
+
+    def get(self, request):
+
+        applications = Application.objects.filter(
+            candidate=request.user
+        ).select_related("job").order_by("-applied_at")
+
+        data = []
+
+        for app in applications:
+
+            data.append({
+                "application_id": app.id,
+                "job_id": app.job.id,
+                "title": app.job.title,
+                "company": app.job.company_name,
+                "location": app.job.location,
+                "status": app.status,
+                "applied_at": app.applied_at
+            })
+
+        return Response(data)
+    
+class ApplyJob(APIView):
+
+    permission_classes = [IsAuthenticated, IsCandidate]
+
+    def post(self, request, job_id):
+
+        job = Job.objects.get(id=job_id)
+
+        app, created = Application.objects.get_or_create(
+            candidate=request.user,
+            job=job
+        )
+
+        if created:
+
+            ApplicationStatusHistory.objects.create(
+                application=app,
+                status="applied",
+                note="Application submitted"
+            )
+
+        return Response({
+            "message":
+            "Applied" if created else "Already applied"
+        })
+    
+class ApplicationTimeline(APIView):
+
+    permission_classes = [IsAuthenticated, IsCandidate]
+
+    def get(self, request, application_id):
+
+        timeline = ApplicationStatusHistory.objects.filter(
+            application_id=application_id,
+            application__candidate=request.user
+        )
+
+        data = []
+
+        for t in timeline:
+
+            data.append({
+
+                "status": t.status,
+                "note": t.note,
+                "date": t.created_at
+            })
+
+        return Response(data)
+    
+
+class CandidateInterviews(APIView):
+
+    permission_classes = [IsAuthenticated, IsCandidate]
+
+    def get(self, request):
+
+        interviews = Application.objects.filter(
+            candidate=request.user,
+            status="interview"
+        ).select_related("job")
+
+        data = []
+
+        for app in interviews:
+
+            data.append({
+                "application_id": app.id,
+                "job_id": app.job.id,
+                "job_title": app.job.title,
+                "company": app.job.company_name,
+                "location": app.job.location,
+                "status": app.status,
+                "applied_at": app.applied_at
+            })
+
+        return Response(data)
+    
+
+class WithdrawApplication(APIView):
+
+    permission_classes = [IsAuthenticated, IsCandidate]
+
+    def post(self, request, application_id):
+
+        app = Application.objects.get(
+            id=application_id,
+            candidate=request.user
+        )
+
+        app.status = "withdrawn"
+        app.save()
+
+        ApplicationStatusHistory.objects.create(
+            application=app,
+            status="withdrawn",
+            note="Candidate withdrew application"
+        )
+
+        return Response({
+            "message": "Application withdrawn"
+        })
+
+class MatchPercentageAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, job_id):
+
+        candidate = CandidateProfile.objects.get(user=request.user)
+        job = Job.objects.get(id=job_id)
+
+        result = MatchService.calculate(candidate, job)
+
+        return Response({
+            "success": True,
+            "data": result
+        })
+class RankedCandidatesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, job_id):
+
+        # Optional: Allow only employer
+        if request.user.role != "employer":
+            return Response({"error": "Only employers allowed"}, status=403)
+
+        applications = Application.objects.filter(job_id=job_id)
+
+        ranked_results = []
+
+        for app in applications:
+            candidate = app.candidate
+            job = app.job
+
+            result = MatchService.calculate(candidate, job)
+
+            ranked_results.append({
+                "candidate_id": candidate.id,
+                "candidate_name": candidate.user.email,
+                "match_percentage": result["match_percentage"]
+            })
+
+        # 🔥 Sort by match percentage
+        ranked_results = sorted(
+            ranked_results,
+            key=lambda x: x["match_percentage"],
+            reverse=True
+        )
+# Add ranking numbers
+        for index, item in enumerate(ranked_results, start=1):
+            item["rank"] = index
+
+        return Response({
+            "success": True,
+            "data": ranked_results
+        })

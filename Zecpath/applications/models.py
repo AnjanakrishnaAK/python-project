@@ -76,6 +76,10 @@ class Application(models.Model):
             changed_by=user
         )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='applied')
+    match_score = models.FloatField(default=0)
+    auto_processed = models.BooleanField(default=False)
+    overridden = models.BooleanField(default=False)
+    score_breakdown = models.JSONField(null=True, blank=True)
 
     # ✅ Allowed transitions
     ALLOWED_TRANSITIONS = {

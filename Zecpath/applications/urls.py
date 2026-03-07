@@ -1,8 +1,9 @@
 from django.urls import path
-from .views import EmployerMoveStageView,ShortlistCandidateView,RejectCandidateView,CandidateDashboard,CandidateAppliedJobs,ApplyJob,ApplicationTimeline
+from .views import ShortlistCandidateView,RejectCandidateView,CandidateDashboard,CandidateAppliedJobs,ApplyJob,ApplicationTimeline
 from .views import  *
 urlpatterns = [
-    path("employer/applications/<int:pk>/move/",EmployerMoveStageView.as_view()),
+    
+    
     path("employer/applications/<int:pk>/shortlist/", ShortlistCandidateView.as_view()),
     path("employer/applications/<int:pk>/reject/", RejectCandidateView.as_view()),
     path("employer/applications/<int:pk>/move/", RejectCandidateView.as_view()),
@@ -14,4 +15,5 @@ urlpatterns = [
     path("withdraw/<int:application_id>/",WithdrawApplication.as_view()),
     path("match/<int:job_id>/", MatchPercentageAPIView.as_view()),
     path("ranked/<int:job_id>/", RankedCandidatesAPIView.as_view()),
+    path("employer/applications/bulk-auto-process/", BulkAutoProcessView.as_view()),
 ]

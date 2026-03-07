@@ -11,12 +11,16 @@ from .models import Application, ApplicationStatusHistory
 from .serializers import ApplicationSerializer
 from jobs.models import Job, SavedJob
 from notifications.models import Notification
+from rest_framework import status
 
 from accounts.models import CandidateProfile
 
 from ats.services.match_service import MatchService
-
-
+from rest_framework import viewsets
+from .tasks import process_application
+from rest_framework.decorators import action
+from .engine import auto_shortlist_engine
+from utils.email_service import send_application_email,send_shortlisted_email,send_rejection_email
 # Create your views here.
 class MoveStageView(APIView):
     permission_classes = [IsAuthenticated]
@@ -105,6 +109,12 @@ class ShortlistCandidateView(APIView):
 
         try:
             application.change_status("shortlisted")
+             # EMAIL TRIGGER HERE
+            send_shortlisted_email(
+                application.candidate,
+                application.job
+            )
+
             return Response({"message": "Candidate shortlisted"})
         except ValueError as e:
             return Response({"error": str(e)}, status=400)
@@ -121,6 +131,12 @@ class RejectCandidateView(APIView):
 
         try:
             application.change_status("rejected")
+            # EMAIL TRIGGER HERE
+            send_rejection_email(
+                application.candidate,
+                application.job
+            )
+
             return Response({"message": "Candidate rejected"})
         except ValueError as e:
             return Response({"error": str(e)}, status=400)
@@ -145,6 +161,8 @@ class MoveApplicationStageView(APIView):
             })
         except ValueError as e:
             return Response({"error": str(e)}, status=400)
+        
+
         
 
 class ApplicationHistoryView(APIView):
@@ -248,11 +266,13 @@ class ApplyJob(APIView):
                 status="applied",
                 note="Application submitted"
             )
+            send_application_email(request.user, job)
 
         return Response({
             "message":
             "Applied" if created else "Already applied"
         })
+    
     
 class ApplicationTimeline(APIView):
 
@@ -383,4 +403,135 @@ class RankedCandidatesAPIView(APIView):
         return Response({
             "success": True,
             "data": ranked_results
+        })
+    
+class ApplicationViewSet(viewsets.ModelViewSet):
+
+    queryset = Application.objects.all()
+    serializer_class = ApplicationSerializer
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=True, methods=['post'])
+    def auto_process(self, request, pk=None):
+        application = self.get_object()
+
+        # 🔐 Only employer can trigger
+        if application.job.employer != request.user:
+            return Response(
+                {"error": "Not authorized"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        auto_shortlist_engine(application)
+
+        return Response({
+            "message": "Application processed",
+            "status": application.status,
+            "score": application.match_score
+        })
+    
+
+    @action(detail=False, methods=['post'])
+    def bulk_auto_process(self, request):
+
+        job_id = request.data.get("job_id")
+        applications = Application.objects.filter(job_id=job_id,auto_processed=False)
+        processed_count = 0
+
+        for app in applications:
+            if app.job.employer == request.user:
+                auto_shortlist_engine(app)
+                processed_count += 1
+
+        return Response({
+            "message": "Bulk processing completed",
+            "processed": processed_count
+        })
+    
+
+    @action(detail=True, methods=['patch'])
+    def change_status(self, request, pk=None): 
+
+        application = self.get_object()
+        new_status = request.data.get("status")
+
+        if application.job.employer != request.user:
+            return Response(
+                {"error": "Not authorized"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+         application.change_status(new_status, user=request.user)
+         application.overridden = True
+         application.save()
+
+         return Response({
+            "message": "Status updated successfully",
+            "new_status": application.status
+        })
+
+        except ValueError as e:
+         return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+
+    @action(detail=False, methods=['post'])
+    def auto_reject_low_scores(self, request):
+
+        threshold = request.data.get("threshold", 40)
+
+        applications = Application.objects.filter(
+            match_score__lt=threshold,
+            status='applied'
+        )
+
+        count = 0
+
+        for app in applications:
+            if app.job.employer == request.user:
+                app.status = "rejected"
+                app.auto_processed = True
+                app.save()
+                count += 1
+
+        return Response({
+            "message": "Low score applications rejected",
+            "count": count
+        })
+    
+
+
+class BulkAutoProcessView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        job_id = request.data.get("job_id")
+
+        if not job_id:
+            return Response(
+                {"error": "job_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        applications = Application.objects.filter(
+            job_id=job_id,
+            auto_processed=False
+        )
+
+        processed = 0
+
+        for app in applications:
+            if app.job.employer != request.user:
+                continue
+
+            auto_shortlist_engine(app)
+            processed += 1
+
+        return Response({
+            "message": "Bulk auto processing completed",
+            "processed_count": processed
         })

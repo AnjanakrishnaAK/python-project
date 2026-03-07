@@ -57,26 +57,22 @@ class Job(models.Model):
 
 
 class JobApplication(models.Model):
-
     job = models.ForeignKey(
         Job,
         on_delete=models.CASCADE,
         related_name='job_applications'
     )
-
     candidate = models.ForeignKey(
         CandidateProfile,
         on_delete=models.CASCADE,
         related_name='applications'
     )
-
     resume = models.ForeignKey(
         Resume,
         on_delete=models.SET_NULL,
         null=True,
         blank=True
     )
-
     status = models.CharField(
         max_length=20,
         choices=(
@@ -87,13 +83,6 @@ class JobApplication(models.Model):
         ),
         default='applied'
     )
-
-    # 🔥 ADD THESE FIELDS
-    match_score = models.FloatField(default=0)
-    auto_processed = models.BooleanField(default=False)
-    overridden = models.BooleanField(default=False)
-    score_breakdown = models.JSONField(null=True, blank=True)
-
     applied_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
